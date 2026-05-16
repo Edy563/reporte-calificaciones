@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reporte de Calificaciones</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'Inter', system-ui, sans-serif; }
+    .risk-none { background:#f1f5f9; color:#64748b }
+    .risk-low  { background:#dcfce7; color:#15803d }
+    .risk-med  { background:#fef3c7; color:#92400e }
+    .risk-high { background:#fee2e2; color:#b91c1c }
+    input[type=number] { -moz-appearance:textfield }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0 }
+    .sec-header td { background: linear-gradient(90deg,#1e3a5f 0%,#2563eb 100%) !important }
+    @media print {
+      .no-print { display:none !important }
+      body { background:white !important }
+      .print-shadow { box-shadow:none !important; border:1px solid #e2e8f0 !important }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-gray-800">
+
+<!-- ══════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════ -->
+<header class="no-print sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap gap-3 items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-base font-bold text-slate-800 leading-tight">Reporte de Calificaciones</h1>
+        <p class="text-xs text-slate-400">Seguimiento de riesgo académico · <span id="hdr-info">—</span></p>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="descargarExcel()"
+        class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        Descargar Excel
+      </button>
+      <button onclick="window.print()"
+        class="inline-flex items-center gap-2 bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+        </svg>
+        Imprimir
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+  <!-- ══════════════════════════════════════════
+       INFO DOCENTE
+  ══════════════════════════════════════════ -->
+  <section class="no-print bg-white rounded-2xl shadow-sm border border-gray-100 p-6 print-shadow">
+    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Información del Reporte</h2>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-medium text-slate-500">Docente</label>
+        <input id="inf-docente" type="text" placeholder="Nombre completo" oninput="syncHeader()"
+          class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-medium text-slate-500">Asignatura</label>
+        <input id="inf-materia" type="text" placeholder="Materia" oninput="syncHeader()"
+          class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-medium text-slate-500">Período Lectivo</label>
+        <input id="inf-periodo" type="text" placeholder="2024–2025"
+          class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-medium text-slate-500">Fecha</label>
+        <input id="inf-fecha" type="date"
+          class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       TABLA
+  ══════════════════════════════════════════ -->
+  <section class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden print-shadow">
+    <div class="px-6 py-4 flex flex-wrap gap-3 items-center justify-between border-b border-gray-100">
+      <div>
+        <h2 class="text-base font-semibold text-slate-700">Registro de Calificaciones</h2>
+        <p class="text-xs text-slate-400 mt-0.5">Complete los valores de cada curso</p>
+      </div>
+      <button onclick="agregarFila()"
+        class="no-print inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        Agregar Fila
+      </button>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 border-b border-gray-100">
+          <tr>
+            <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Curso / Paralelo</th>
+            <th class="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-44">Total Estudiantes</th>
+            <th class="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-44">Estud. &lt; 7 pts</th>
+            <th class="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-36">
+              % Riesgo
+            </th>
+            <th class="w-12 no-print"></th>
+          </tr>
+        </thead>
+        <tbody id="tabla-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Legend -->
+    <div class="no-print px-6 py-3 bg-slate-50 border-t border-gray-100 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-slate-500">
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-green-400 inline-block"></span>Bajo riesgo (&lt; 20%)
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block"></span>Riesgo medio (20 – 40%)
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"></span>Alto riesgo (&gt; 40%)
+      </span>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       STATS
+  ══════════════════════════════════════════ -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 print-shadow">
+      <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Cursos con datos</p>
+      <p id="s-cursos" class="text-3xl font-bold text-slate-700 mt-1">0</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 print-shadow">
+      <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Estudiantes</p>
+      <p id="s-total" class="text-3xl font-bold text-blue-600 mt-1">0</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 print-shadow">
+      <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">En Riesgo (&lt; 7)</p>
+      <p id="s-riesgo" class="text-3xl font-bold text-red-500 mt-1">0</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 print-shadow">
+      <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">% Riesgo Global</p>
+      <p id="s-pct" class="text-3xl font-bold text-orange-500 mt-1">—</p>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════
+       GRÁFICOS
+  ══════════════════════════════════════════ -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 print-shadow">
+      <h3 class="text-sm font-semibold text-slate-700">Comparativo por Curso</h3>
+      <p class="text-xs text-slate-400 mb-4">Total de estudiantes vs. en riesgo</p>
+      <div class="relative h-72">
+        <canvas id="chartComparativo"></canvas>
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 print-shadow">
+      <h3 class="text-sm font-semibold text-slate-700">Porcentaje de Riesgo</h3>
+      <p class="text-xs text-slate-400 mb-4">Coloreado según nivel de alerta</p>
+      <div class="relative h-72">
+        <canvas id="chartRiesgo"></canvas>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ══════════════════════════════════════════
+     FOOTER
+══════════════════════════════════════════ -->
+<footer class="no-print max-w-6xl mx-auto px-4 sm:px-6 py-6 text-center text-xs text-slate-400">
+  Herramienta de seguimiento académico · Los datos solo se procesan en su navegador
+</footer>
+
+<!-- ══════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════ -->
+<script>
+/* ─── Datos iniciales ─────────────────────────── */
+const SECTIONS = [
+  {
+    id: 'basica',
+    title: 'Educación Básica Superior',
+    courses: ['Octavo A', 'Octavo B', 'Noveno A', 'Noveno B', 'Décimo A', 'Décimo B']
+  },
+  {
+    id: 'bgu',
+    title: 'Bachillerato',
+    courses: [
+      'Primero BGU',
+      'Primer Bachillerato Técnico',
+      'Segundo Bachillerato Técnico',
+      'Segundo Bachillerato Ciencias',
+      'Tercero Bachillerato Ciencias A',
+      'Tercero Bachillerato Ciencias B',
+      'Tercero de Bachillerato Técnico'
+    ]
+  }
+];
+
+let extraCount = 0;
+let chartComp, chartRsk;
+
+/* ─── Inicialización ─────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('inf-fecha').value = new Date().toISOString().slice(0, 10);
+
+  const tbody = document.getElementById('tabla-body');
+
+  SECTIONS.forEach(sec => {
+    const hdr = document.createElement('tr');
+    hdr.className = 'sec-header';
+    hdr.innerHTML = `<td colspan="5" class="px-6 py-2 text-xs font-bold text-white uppercase tracking-widest">${sec.title}</td>`;
+    tbody.appendChild(hdr);
+
+    sec.courses.forEach((curso, i) => {
+      tbody.appendChild(buildRow(`${sec.id}-${i}`, curso, false));
+    });
+  });
+
+  initCharts();
+});
+
+/* ─── Sync header subtitle ──────────────────── */
+function syncHeader() {
+  const m = document.getElementById('inf-materia').value;
+  const d = document.getElementById('inf-docente').value;
+  const parts = [d, m].filter(Boolean);
+  document.getElementById('hdr-info').textContent = parts.length ? parts.join(' · ') : '—';
+}
+
+/* ─── Construir fila ─────────────────────────── */
+function buildRow(id, curso, deletable) {
+  const tr = document.createElement('tr');
+  tr.id = `row-${id}`;
+  tr.className = 'border-b border-gray-50 hover:bg-slate-50/60 transition-colors';
+
+  const cursoCell = deletable
+    ? `<input type="text" value="${curso}" placeholder="Nombre del curso"
+         class="w-full text-sm text-slate-700 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5">`
+    : `<span class="font-medium text-slate-700">${curso}</span>`;
+
+  tr.innerHTML = `
+    <td class="px-6 py-3">${cursoCell}</td>
+    <td class="px-4 py-3">
+      <input type="number" min="0" id="tot-${id}" oninput="calc('${id}')" placeholder="0"
+        class="w-full text-center border border-gray-200 rounded-lg px-2 py-1.5 text-sm
+               focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-shadow">
+    </td>
+    <td class="px-4 py-3">
+      <input type="number" min="0" id="low-${id}" oninput="calc('${id}')" placeholder="0"
+        class="w-full text-center border border-gray-200 rounded-lg px-2 py-1.5 text-sm
+               focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-shadow">
+    </td>
+    <td class="px-4 py-3 text-center">
+      <span id="pct-${id}" class="inline-block px-3 py-1 rounded-full text-xs font-semibold risk-none">—</span>
+    </td>
+    <td class="px-2 py-3 text-center no-print">
+      ${deletable ? `
+        <button onclick="removeRow('${id}')" title="Eliminar fila"
+          class="text-gray-300 hover:text-red-400 transition-colors rounded-full p-1 hover:bg-red-50">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </button>` : ''}
+    </td>`;
+
+  return tr;
+}
+
+/* ─── Agregar / eliminar filas ───────────────── */
+function agregarFila() {
+  const id = `extra-${extraCount++}`;
+  document.getElementById('tabla-body').appendChild(buildRow(id, '', true));
+  document.getElementById(`tot-${id}`)?.focus();
+}
+
+function removeRow(id) {
+  document.getElementById(`row-${id}`)?.remove();
+  refresh();
+}
+
+/* ─── Cálculo de % riesgo por fila ──────────── */
+function calc(id) {
+  const tot = parseFloat(document.getElementById(`tot-${id}`)?.value) || 0;
+  const low = parseFloat(document.getElementById(`low-${id}`)?.value) || 0;
+  const span = document.getElementById(`pct-${id}`);
+  if (!span) return;
+
+  if (tot === 0 && low === 0) {
+    span.textContent = '—';
+    span.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold risk-none';
+  } else {
+    const pct = tot > 0 ? (low / tot) * 100 : 0;
+    span.textContent = pct.toFixed(1) + '%';
+    span.className = 'inline-block px-3 py-1 rounded-full text-xs font-semibold ' +
+      (pct < 20 ? 'risk-low' : pct < 40 ? 'risk-med' : 'risk-high');
+  }
+  refresh();
+}
+
+/* ─── Leer todas las filas de datos ─────────── */
+function getAllRows() {
+  return [...document.querySelectorAll('[id^="tot-"]')].map(inp => {
+    const id = inp.id.slice(4);
+    const tr = document.getElementById(`row-${id}`);
+    const span = tr?.querySelector('td:first-child span');
+    const textInp = tr?.querySelector('td:first-child input[type="text"]');
+    const curso = (span?.textContent || textInp?.value || '').trim();
+    const tot = parseFloat(inp.value) || 0;
+    const low = parseFloat(document.getElementById(`low-${id}`)?.value) || 0;
+    const pct = tot > 0 ? (low / tot) * 100 : 0;
+    return { id, curso: curso || 'Sin nombre', tot, low, pct };
+  });
+}
+
+/* ─── Actualizar stats y gráficos ────────────── */
+function refresh() {
+  const rows = getAllRows();
+  const active = rows.filter(r => r.tot > 0);
+  const sumTot = rows.reduce((a, r) => a + r.tot, 0);
+  const sumLow = rows.reduce((a, r) => a + r.low, 0);
+  const pctG   = sumTot > 0 ? (sumLow / sumTot * 100).toFixed(1) + '%' : '—';
+
+  document.getElementById('s-cursos').textContent = active.length;
+  document.getElementById('s-total').textContent  = sumTot;
+  document.getElementById('s-riesgo').textContent = sumLow;
+  document.getElementById('s-pct').textContent    = pctG;
+
+  const withData = rows.filter(r => r.tot > 0 || r.low > 0);
+  const labels   = withData.map(r => r.curso.length > 20 ? r.curso.slice(0, 18) + '…' : r.curso);
+
+  chartComp.data.labels = labels;
+  chartComp.data.datasets[0].data = withData.map(r => r.tot);
+  chartComp.data.datasets[1].data = withData.map(r => r.low);
+  chartComp.update('none');
+
+  chartRsk.data.labels = labels;
+  chartRsk.data.datasets[0].data = withData.map(r => +r.pct.toFixed(1));
+  chartRsk.data.datasets[0].backgroundColor = withData.map(r =>
+    r.pct < 20 ? 'rgba(34,197,94,0.75)' : r.pct < 40 ? 'rgba(234,179,8,0.75)' : 'rgba(239,68,68,0.75)');
+  chartRsk.data.datasets[0].borderColor = withData.map(r =>
+    r.pct < 20 ? '#22c55e' : r.pct < 40 ? '#eab308' : '#ef4444');
+  chartRsk.update('none');
+}
+
+/* ─── Chart.js ──────────────────────────────── */
+function initCharts() {
+  chartComp = new Chart(document.getElementById('chartComparativo'), {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: 'Total Estudiantes',
+          data: [],
+          backgroundColor: 'rgba(37,99,235,0.75)',
+          borderColor: '#2563eb',
+          borderWidth: 1,
+          borderRadius: 5,
+          borderSkipped: false
+        },
+        {
+          label: 'Estud. < 7 pts',
+          data: [],
+          backgroundColor: 'rgba(239,68,68,0.75)',
+          borderColor: '#ef4444',
+          borderWidth: 1,
+          borderRadius: 5,
+          borderSkipped: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, padding: 16 } }
+      },
+      scales: {
+        x: {
+          ticks: { font: { size: 9 }, maxRotation: 40, minRotation: 20 },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { font: { size: 10 } },
+          grid: { color: 'rgba(0,0,0,0.04)' }
+        }
+      }
+    }
+  });
+
+  chartRsk = new Chart(document.getElementById('chartRiesgo'), {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{
+        label: '% Riesgo',
+        data: [],
+        backgroundColor: [],
+        borderColor: [],
+        borderWidth: 1,
+        borderRadius: 5,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ' ' + ctx.parsed.y.toFixed(1) + '%' }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { font: { size: 9 }, maxRotation: 40, minRotation: 20 },
+          grid: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          max: 100,
+          ticks: { font: { size: 10 }, callback: v => v + '%' },
+          grid: { color: 'rgba(0,0,0,0.04)' }
+        }
+      }
+    }
+  });
+}
+
+/* ─── Template Excel (base64) con gráficas embebidas ─── */
+const TEMPLATE_B64 = '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';
+
+/* ── Mapa de filas HTML → Excel ──────────────── */
+const EXCEL_ROW = {
+  'basica-0':7, 'basica-1':8,  'basica-2':9,  'basica-3':10, 'basica-4':11, 'basica-5':12,
+  'bgu-0':14,   'bgu-1':15,   'bgu-2':16,    'bgu-3':17,    'bgu-4':18,    'bgu-5':19,   'bgu-6':20
+};
+const EXTRA_EXCEL_START = 21;
+const MAX_EXTRA_EXCEL   = 20;
+
+/* ─── Descarga Excel con gráficas dinámicas ──── */
+async function descargarExcel() {
+  const docente = document.getElementById('inf-docente').value || '';
+  const materia = document.getElementById('inf-materia').value || '';
+  const periodo = document.getElementById('inf-periodo').value || '';
+  const fecha   = document.getElementById('inf-fecha').value || '';
+  const rows    = getAllRows();
+
+  /* 1. Cargar template desde base64 */
+  const bin   = atob(TEMPLATE_B64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const zip = await JSZip.loadAsync(bytes);
+
+  /* 2. Editar xl/worksheets/sheet1.xml */
+  let xml = await zip.file('xl/worksheets/sheet1.xml').async('string');
+
+  /* Escapa caracteres especiales XML */
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  /* Reemplazar placeholders de información */
+  xml = xml.replace('<t>PH_DOCENTE</t>',  `<t>${esc(docente) || '—'}</t>`);
+  xml = xml.replace('<t>PH_MATERIA</t>',  `<t>${esc(materia) || '—'}</t>`);
+  xml = xml.replace('<t>PH_PERIODO</t>',  `<t>${esc(periodo) || '—'}</t>`);
+  xml = xml.replace('<t>PH_FECHA</t>',    `<t>${esc(fecha)   || '—'}</t>`);
+
+  /* Actualizar valor numérico de una celda específica */
+  function setNum(x, ref, val) {
+    /* Busca <c r="REF" …><v>OLD</v></c> y actualiza el valor */
+    return x.replace(
+      new RegExp(`(<c r="${ref}"[^>]*>(?:<f>[^<]*<\\/f>)?)<v>[^<]*<\\/v>`),
+      `$1<v>${val}</v>`
+    );
+  }
+
+  /* Actualizar celdas B y C de cada fila con datos */
+  rows.forEach(row => {
+    let er = EXCEL_ROW[row.id];
+    if (er === undefined && row.id.startsWith('extra-')) {
+      const idx = parseInt(row.id.replace('extra-', ''), 10);
+      if (idx < MAX_EXTRA_EXCEL) er = EXTRA_EXCEL_START + idx;
+    }
+    if (er !== undefined) {
+      xml = setNum(xml, `B${er}`, row.tot);
+      xml = setNum(xml, `C${er}`, row.low);
+    }
+  });
+
+  /* Reemplazar nombres de cursos extra */
+  const extraRows = rows.filter(r => r.id.startsWith('extra-'));
+  for (let i = 0; i < MAX_EXTRA_EXCEL; i++) {
+    const ph   = `PH_EXTRA_${String(i+1).padStart(2,'0')}`;
+    const name = (i < extraRows.length) ? esc(extraRows[i].curso) : '';
+    xml = xml.replace(`<t>${ph}</t>`, `<t>${name}</t>`);
+  }
+
+  zip.file('xl/worksheets/sheet1.xml', xml);
+
+  /* 3. Generar blob y descargar */
+  const blob = await zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 }
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href    = url;
+  const safe = s => s.replace(/[\/\\:*?"<>|]/g, '');
+  a.download = `Reporte_${safe(materia || 'Calificaciones')}_${safe(periodo || fecha || 'sin-fecha')}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
