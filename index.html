@@ -65,7 +65,7 @@
         </svg>
         Descargar Excel
       </button>
-      <button id="btn-lock" onclick="toggleLock()"
+      <button id="btn-lock" onclick="toggleLock()" style="display:none"
         class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm">
         <svg id="lock-icon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
@@ -266,6 +266,8 @@ let chartComp, chartRsk;
    ═══════════════════════════════════════════════ */
 /* Sala única fija — todos los docentes usan la misma */
 const SALA_FIJA = 'sala-principal';
+/* Clave secreta de administrador (solo cambia esto) */
+const ADMIN_KEY = 'ev2026';
 
 let db = null;
 let salaRef = null;
@@ -486,6 +488,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initCharts();
   initFirebase();
+
+  /* Mostrar botón bloquear solo si es admin */
+  const adminParam = new URLSearchParams(window.location.search).get('admin');
+  if (adminParam === ADMIN_KEY) {
+    document.getElementById('btn-lock').style.display = 'inline-flex';
+  }
 });
 
 /* ─── Sync header subtitle ──────────────────── */
