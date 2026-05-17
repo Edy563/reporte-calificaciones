@@ -65,6 +65,13 @@
         </svg>
         Descargar Excel
       </button>
+      <button id="btn-lock" onclick="toggleLock()"
+        class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm">
+        <svg id="lock-icon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+        </svg>
+        <span id="lock-label">Bloquear</span>
+      </button>
       <button onclick="window.print()"
         class="inline-flex items-center gap-2 bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -75,6 +82,11 @@
     </div>
   </div>
 </header>
+
+<!-- Banner bloqueo -->
+<div id="lock-banner" class="hidden no-print bg-red-600 text-white text-sm font-medium text-center py-2.5 px-4">
+  🔒 Edición bloqueada — Solo el coordinador puede desbloquear
+</div>
 
 <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
@@ -306,8 +318,46 @@ function initFirebase() {
   }
 }
 
+/* ─── Bloqueo de edición ─────────────────────── */
+let isLocked = false;
+
+function toggleLock() {
+  if (!salaRef) return;
+  const newState = !isLocked;
+  salaRef.child('locked').set(newState);
+}
+
+function applyLock(locked) {
+  isLocked = locked;
+  const inputs = document.querySelectorAll('input[type="number"], input[type="text"], input[type="date"]');
+  inputs.forEach(inp => {
+    inp.disabled = locked;
+    inp.style.opacity = locked ? '0.5' : '1';
+    inp.style.cursor  = locked ? 'not-allowed' : '';
+  });
+  const btnAdd  = document.querySelector('button[onclick="agregarFila()"]');
+  if (btnAdd) { btnAdd.disabled = locked; btnAdd.style.opacity = locked ? '0.5' : '1'; }
+
+  document.getElementById('lock-banner').classList.toggle('hidden', !locked);
+  const btn   = document.getElementById('btn-lock');
+  const label = document.getElementById('lock-label');
+  if (locked) {
+    btn.classList.replace('bg-amber-500','bg-green-600');
+    btn.classList.replace('hover:bg-amber-600','hover:bg-green-700');
+    label.textContent = 'Desbloquear';
+    document.getElementById('lock-icon').innerHTML =
+      '<path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/><line x1="8" y1="11" x2="16" y2="11"/>';
+  } else {
+    btn.classList.replace('bg-green-600','bg-amber-500');
+    btn.classList.replace('hover:bg-green-700','hover:bg-amber-600');
+    label.textContent = 'Bloquear';
+    document.getElementById('lock-icon').innerHTML =
+      '<path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>';
+  }
+}
+
 function pushAllToFirebase() {
-  if (!salaRef || isApplyingRemote || !initialLoadDone) return;
+  if (!salaRef || isApplyingRemote || !initialLoadDone || isLocked) return;
   salaRef.update(collectAllData()).catch(() => setSyncStatus('offline', 'Error al guardar'));
 }
 
@@ -347,6 +397,9 @@ function collectAllData() {
 
 /* ─── Aplicar datos remotos ──────────────────── */
 function applyRemoteData(data) {
+  /* Aplicar estado de bloqueo */
+  if (typeof data.locked !== 'undefined') applyLock(data.locked);
+
   isApplyingRemote = true;
   try {
     if (data.info) {
@@ -693,6 +746,9 @@ async function descargarExcel() {
     if (er !== undefined) {
       xml = setNum(xml, `B${er}`, row.tot);
       xml = setNum(xml, `C${er}`, row.low);
+      /* Escribir %Riesgo calculado directamente en columna D para evitar recálculo manual */
+      const pctVal = row.tot > 0 ? row.low / row.tot : 0;
+      xml = setNum(xml, `D${er}`, pctVal);
     }
   });
 
