@@ -51,10 +51,9 @@
       <div>
         <h1 class="text-base font-bold text-slate-800 leading-tight">Reporte de Calificaciones</h1>
         <p class="text-xs text-slate-400">Seguimiento de riesgo académico · <span id="hdr-info">—</span></p>
-        <div id="sync-bar" class="hidden flex items-center gap-1.5 mt-0.5">
+        <div class="flex items-center gap-1.5 mt-0.5">
           <span id="sync-dot" class="sync-dot offline"></span>
-          <span id="sync-label" class="text-[10px] font-medium text-slate-400">Sin conexión</span>
-          <span id="sala-name" class="text-[10px] font-semibold text-blue-600 ml-1 cursor-pointer hover:underline" onclick="showSalaModal()" title="Cambiar sala"></span>
+          <span id="sync-label" class="text-[10px] font-medium text-slate-400">Conectando...</span>
         </div>
       </div>
     </div>
@@ -202,45 +201,6 @@
 </main>
 
 <!-- ══════════════════════════════════════════
-     MODAL SALA COLABORATIVA
-══════════════════════════════════════════ -->
-<div id="sala-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 text-white">
-      <h2 class="text-lg font-bold flex items-center gap-2">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-        </svg>
-        Sala Colaborativa
-      </h2>
-      <p class="text-blue-100 text-xs mt-1">Todos los docentes que ingresen a la misma sala verán los datos en tiempo real</p>
-    </div>
-    <div class="p-6 space-y-4">
-      <div>
-        <label class="text-xs font-medium text-slate-500 block mb-1.5">Nombre de la Sala</label>
-        <input id="sala-input" type="text" placeholder="Ej: matematicas-2026" autocomplete="off"
-          class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          onkeydown="if(event.key==='Enter') joinSala()">
-        <p class="text-[10px] text-slate-400 mt-1">Use el mismo nombre para que todos compartan datos</p>
-      </div>
-      <div id="sala-recent" class="hidden">
-        <label class="text-xs font-medium text-slate-500 block mb-1.5">Salas recientes</label>
-        <div id="sala-recent-list" class="flex flex-wrap gap-2"></div>
-      </div>
-      <div id="sala-error" class="hidden text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2"></div>
-      <div class="flex gap-3">
-        <button onclick="joinSala()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
-          Ingresar a la Sala
-        </button>
-        <button onclick="closeSalaModal()" class="px-4 py-2.5 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-          Cancelar
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════
      FOOTER
 ══════════════════════════════════════════ -->
 <footer class="no-print max-w-6xl mx-auto px-4 sm:px-6 py-6 text-center text-xs text-slate-400">
@@ -292,26 +252,14 @@ let chartComp, chartRsk;
 /* ═══════════════════════════════════════════════
    FIREBASE & SYNC
    ═══════════════════════════════════════════════ */
+/* Sala única fija — todos los docentes usan la misma */
+const SALA_FIJA = 'sala-principal';
+
 let db = null;
 let salaRef = null;
-let currentSala = null;
 let isApplyingRemote = false;
 let syncTimeout = null;
-let firebaseReady = false;
 let initialLoadDone = false;
-
-function initFirebase() {
-  try {
-    if (FIREBASE_CONFIG.apiKey === 'AIzaSyDummyKeyReplace') return false;
-    firebase.initializeApp(FIREBASE_CONFIG);
-    db = firebase.database();
-    firebaseReady = true;
-    return true;
-  } catch (e) {
-    console.warn('Firebase init failed:', e);
-    return false;
-  }
-}
 
 function setSyncStatus(status, text) {
   const dot = document.getElementById('sync-dot');
@@ -321,109 +269,53 @@ function setSyncStatus(status, text) {
   label.textContent = text;
 }
 
-/* ─── Sala modal ─────────────────────────────── */
-function showSalaModal() {
-  document.getElementById('sala-modal').classList.remove('hidden');
-  document.getElementById('sala-error').classList.add('hidden');
-  const inp = document.getElementById('sala-input');
-  inp.value = '';
-  inp.focus();
-  showRecentSalas();
-}
-function closeSalaModal() {
-  document.getElementById('sala-modal').classList.add('hidden');
-}
+function initFirebase() {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+    salaRef = db.ref('salas/' + SALA_FIJA);
 
-function showRecentSalas() {
-  const recent = JSON.parse(localStorage.getItem('salas-recientes') || '[]');
-  const container = document.getElementById('sala-recent');
-  const list = document.getElementById('sala-recent-list');
-  if (recent.length === 0) { container.classList.add('hidden'); return; }
-  container.classList.remove('hidden');
-  list.innerHTML = recent.map(s =>
-    `<button onclick="document.getElementById('sala-input').value='${s}';joinSala()"
-       class="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-full transition-colors font-medium">${s}</button>`
-  ).join('');
-}
+    setSyncStatus('syncing', 'Conectando...');
 
-function saveRecentSala(name) {
-  let recent = JSON.parse(localStorage.getItem('salas-recientes') || '[]');
-  recent = [name, ...recent.filter(s => s !== name)].slice(0, 5);
-  localStorage.setItem('salas-recientes', JSON.stringify(recent));
-}
-
-function joinSala() {
-  const name = document.getElementById('sala-input').value.trim().toLowerCase().replace(/[^a-z0-9\-_]/g, '-');
-  if (!name || name.length < 2) {
-    const err = document.getElementById('sala-error');
-    err.textContent = 'Ingrese un nombre de sala válido (mínimo 2 caracteres, solo letras, números y guiones)';
-    err.classList.remove('hidden');
-    return;
-  }
-  if (!firebaseReady) {
-    const err = document.getElementById('sala-error');
-    err.textContent = 'Firebase no está configurado. Contacte al administrador.';
-    err.classList.remove('hidden');
-    return;
-  }
-
-  if (salaRef) salaRef.off();
-  currentSala = name;
-  salaRef = db.ref('salas/' + name);
-  saveRecentSala(name);
-
-  const url = new URL(window.location);
-  url.searchParams.set('sala', name);
-  history.replaceState(null, '', url);
-
-  initialLoadDone = false;
-  document.getElementById('sala-name').textContent = '📡 ' + name;
-  setSyncStatus('syncing', 'Conectando...');
-  closeSalaModal();
-
-  // Paso 1: leer datos existentes UNA sola vez antes de suscribirse a cambios
-  salaRef.once('value').then(snapshot => {
-    const data = snapshot.val();
-    if (data) applyRemoteData(data);
-    initialLoadDone = true;
-    setSyncStatus('online', 'Sincronizado');
-
-    // Paso 2: recién aquí suscribirse a cambios en tiempo real (otros docentes)
-    salaRef.on('value', snapshot2 => {
-      if (!initialLoadDone) return;
-      const d = snapshot2.val();
-      if (d) applyRemoteData(d);
-    }, err => {
-      setSyncStatus('offline', 'Error: ' + err.message);
-    });
-  }).catch(err => {
-    setSyncStatus('offline', 'Error al conectar');
-    initialLoadDone = true; // permitir escribir aunque falle la carga
-  });
-
-  db.ref('.info/connected').on('value', snap => {
-    if (snap.val() === true && initialLoadDone) {
+    // Primero cargar datos existentes, luego suscribirse a cambios
+    salaRef.once('value').then(snapshot => {
+      const data = snapshot.val();
+      if (data) applyRemoteData(data);
+      initialLoadDone = true;
       setSyncStatus('online', 'Sincronizado');
-    } else if (snap.val() !== true) {
-      setSyncStatus('offline', 'Desconectado');
-    }
-  });
+
+      // Suscribirse a cambios de otros docentes
+      salaRef.on('value', snap => {
+        const d = snap.val();
+        if (d) applyRemoteData(d);
+        setSyncStatus('online', 'Sincronizado');
+      });
+    }).catch(() => {
+      setSyncStatus('offline', 'Sin conexión');
+      initialLoadDone = true;
+    });
+
+    db.ref('.info/connected').on('value', snap => {
+      if (!snap.val()) setSyncStatus('offline', 'Desconectado');
+    });
+
+  } catch (e) {
+    console.warn('Firebase error:', e);
+    setSyncStatus('offline', 'Error Firebase');
+    initialLoadDone = true;
+  }
 }
 
-/* ─── Push data to Firebase ──────────────────── */
 function pushAllToFirebase() {
-  if (!salaRef || isApplyingRemote) return;
-  const data = collectAllData();
-  salaRef.update(data).catch(err => {
-    setSyncStatus('offline', 'Error al guardar');
-  });
+  if (!salaRef || isApplyingRemote || !initialLoadDone) return;
+  salaRef.update(collectAllData()).catch(() => setSyncStatus('offline', 'Error al guardar'));
 }
 
 function debouncedSync() {
   if (!salaRef || isApplyingRemote || !initialLoadDone) return;
   setSyncStatus('syncing', 'Guardando...');
   clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(() => pushAllToFirebase(), 600);
+  syncTimeout = setTimeout(pushAllToFirebase, 800);
 }
 
 function collectAllData() {
@@ -453,7 +345,7 @@ function collectAllData() {
   return { info, rows, extras, extraCount };
 }
 
-/* ─── Apply remote data ──────────────────────── */
+/* ─── Aplicar datos remotos ──────────────────── */
 function applyRemoteData(data) {
   isApplyingRemote = true;
   try {
@@ -540,18 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   initCharts();
-
-  const fbOk = initFirebase();
-  if (fbOk) {
-    document.getElementById('sync-bar').classList.remove('hidden');
-    const urlSala = new URLSearchParams(window.location.search).get('sala');
-    if (urlSala) {
-      document.getElementById('sala-input').value = urlSala;
-      joinSala();
-    } else {
-      showSalaModal();
-    }
-  }
+  initFirebase();
 });
 
 /* ─── Sync header subtitle ──────────────────── */
@@ -604,6 +485,10 @@ function buildRow(id, curso, deletable) {
 }
 
 /* ─── Agregar / eliminar filas ───────────────── */
+function showSalaModal()  {} // eliminado
+function closeSalaModal() {} // eliminado
+function joinSala()       {} // eliminado
+
 function agregarFila() {
   const id = `extra-${extraCount++}`;
   document.getElementById('tabla-body').appendChild(buildRow(id, '', true));
