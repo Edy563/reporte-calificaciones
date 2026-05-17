@@ -379,12 +379,18 @@ function joinSala() {
   setSyncStatus('syncing', 'Conectando...');
   closeSalaModal();
 
-  salaRef.on('value', snapshot => {
+  salaRef.once('value', snapshot => {
     const data = snapshot.val();
-    if (data) applyRemoteData(data);
-    setSyncStatus('online', 'Sincronizado');
-  }, err => {
-    setSyncStatus('offline', 'Error: ' + err.message);
+    if (data) {
+      applyRemoteData(data);
+    }
+    salaRef.on('value', snapshot2 => {
+      const d = snapshot2.val();
+      if (d) applyRemoteData(d);
+      setSyncStatus('online', 'Sincronizado');
+    }, err => {
+      setSyncStatus('offline', 'Error: ' + err.message);
+    });
   });
 
   db.ref('.info/connected').on('value', snap => {
@@ -394,8 +400,6 @@ function joinSala() {
       setSyncStatus('offline', 'Desconectado');
     }
   });
-
-  pushAllToFirebase();
 }
 
 /* ─── Push data to Firebase ──────────────────── */
