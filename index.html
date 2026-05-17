@@ -298,6 +298,7 @@ let currentSala = null;
 let isApplyingRemote = false;
 let syncTimeout = null;
 let firebaseReady = false;
+let initialLoadDone = false;
 
 function initFirebase() {
   try {
@@ -375,28 +376,35 @@ function joinSala() {
   url.searchParams.set('sala', name);
   history.replaceState(null, '', url);
 
+  initialLoadDone = false;
   document.getElementById('sala-name').textContent = '📡 ' + name;
   setSyncStatus('syncing', 'Conectando...');
   closeSalaModal();
 
-  salaRef.once('value', snapshot => {
+  // Paso 1: leer datos existentes UNA sola vez antes de suscribirse a cambios
+  salaRef.once('value').then(snapshot => {
     const data = snapshot.val();
-    if (data) {
-      applyRemoteData(data);
-    }
+    if (data) applyRemoteData(data);
+    initialLoadDone = true;
+    setSyncStatus('online', 'Sincronizado');
+
+    // Paso 2: recién aquí suscribirse a cambios en tiempo real (otros docentes)
     salaRef.on('value', snapshot2 => {
+      if (!initialLoadDone) return;
       const d = snapshot2.val();
       if (d) applyRemoteData(d);
-      setSyncStatus('online', 'Sincronizado');
     }, err => {
       setSyncStatus('offline', 'Error: ' + err.message);
     });
+  }).catch(err => {
+    setSyncStatus('offline', 'Error al conectar');
+    initialLoadDone = true; // permitir escribir aunque falle la carga
   });
 
   db.ref('.info/connected').on('value', snap => {
-    if (snap.val() === true) {
+    if (snap.val() === true && initialLoadDone) {
       setSyncStatus('online', 'Sincronizado');
-    } else {
+    } else if (snap.val() !== true) {
       setSyncStatus('offline', 'Desconectado');
     }
   });
@@ -412,10 +420,10 @@ function pushAllToFirebase() {
 }
 
 function debouncedSync() {
-  if (!salaRef || isApplyingRemote) return;
+  if (!salaRef || isApplyingRemote || !initialLoadDone) return;
   setSyncStatus('syncing', 'Guardando...');
   clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(() => pushAllToFirebase(), 400);
+  syncTimeout = setTimeout(() => pushAllToFirebase(), 600);
 }
 
 function collectAllData() {
